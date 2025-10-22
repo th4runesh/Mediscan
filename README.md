@@ -1,2 +1,1 @@
-# Mediscan
-Advance programming practice project
+Waste cycle
