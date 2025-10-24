@@ -1,0 +1,199 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import Header from "@/components/Header";
+
+const SymptomScanner = () => {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [symptoms, setSymptoms] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    navigate("/auth");
+    return null;
+  }
+
+  const handleAnalyze = async () => {
+    if (!symptoms.trim()) {
+      toast.error("Please describe your symptoms");
+      return;
+    }
+
+    setAnalyzing(true);
+    setResult(null);
+
+    try {
+      // Get user profile for context
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      const { data, error } = await supabase.functions.invoke('analyze-symptoms', {
+        body: { 
+          symptoms,
+          userProfile: profile 
+        }
+      });
+
+      if (error) throw error;
+
+      setResult(data);
+
+      // Save to symptom logs
+      await supabase.from('symptom_logs').insert({
+        user_id: user.id,
+        symptoms,
+        analysis_result: data.possibleConditions,
+        confidence_score: data.possibleConditions[0]?.confidence || 0,
+        severity: data.severity,
+        recommendations: data.recommendations?.join('\n')
+      });
+
+      toast.success("Analysis complete!");
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      toast.error(error.message || "Failed to analyze symptoms");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'severe': return 'bg-destructive text-destructive-foreground';
+      case 'moderate': return 'bg-orange-500 text-white';
+      case 'mild': return 'bg-green-500 text-white';
+      default: return 'bg-secondary text-secondary-foreground';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-primary/5">
+      <Header />
+      
+      <main className="container max-w-4xl mx-auto px-4 py-8">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate("/")}
+          className="mb-6"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">AI Symptom Scanner</CardTitle>
+            <CardDescription>
+              Describe your symptoms in detail for AI-powered health analysis
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Example: I have a headache, fever, and sore throat for the past 2 days..."
+                value={symptoms}
+                onChange={(e) => setSymptoms(e.target.value)}
+                rows={6}
+                className="resize-none"
+              />
+            </div>
+
+            <Button 
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="w-full"
+              size="lg"
+            >
+              {analyzing ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                "Analyze Symptoms"
+              )}
+            </Button>
+
+            {result && (
+              <div className="space-y-6 mt-8 p-6 bg-accent/20 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold">Analysis Results</h3>
+                  <Badge className={getSeverityColor(result.severity)}>
+                    {result.severity?.toUpperCase() || 'UNKNOWN'}
+                  </Badge>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-3">Possible Conditions:</h4>
+                  <div className="space-y-3">
+                    {result.possibleConditions?.map((condition: any, index: number) => (
+                      <Card key={index}>
+                        <CardContent className="pt-6">
+                          <div className="flex justify-between items-start mb-2">
+                            <h5 className="font-medium">{condition.name}</h5>
+                            <Badge variant="outline">{condition.confidence}% confidence</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{condition.description}</p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-3">Recommendations:</h4>
+                  <ul className="space-y-2">
+                    {result.recommendations?.map((rec: string, index: number) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span className="text-sm">{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {result.seekMedicalHelp && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-destructive mb-1">Medical Attention Recommended</h4>
+                        <p className="text-sm">Please consult with a healthcare professional for proper diagnosis and treatment.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground italic border-t pt-4">
+                  {result.disclaimer}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
+
+export default SymptomScanner;

@@ -1,0 +1,82 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
+import Header from "@/components/Header";
+import Dashboard from "@/components/Dashboard";
+
+const Index = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/20 to-background">
+      <Header />
+      
+      <main className="container mx-auto px-4 pb-12">
+        {/* Hero Section */}
+        <section className="text-center mb-12 space-y-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-foreground">
+            Scan, Detect, and Recover
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            24/7 AI-powered health companion in your pocket. Get instant symptom analysis, 
+            personalized advice, and emergency support anytime, anywhere.
+          </p>
+        </section>
+
+        {/* Dashboard Cards */}
+        <section className="flex justify-center">
+          <Dashboard />
+        </section>
+
+        {/* Features Section */}
+        <section className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="feature-card">
+            <div className="text-4xl mb-3">🔍</div>
+            <h3 className="text-lg font-semibold mb-2">Smart Detection</h3>
+            <p className="text-sm text-muted-foreground">
+              AI analyzes your symptoms through text, voice, or camera input
+            </p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="text-4xl mb-3">💡</div>
+            <h3 className="text-lg font-semibold mb-2">Expert Guidance</h3>
+            <p className="text-sm text-muted-foreground">
+              Get personalized recovery advice and lifestyle recommendations
+            </p>
+          </div>
+          
+          <div className="feature-card">
+            <div className="text-4xl mb-3">🚑</div>
+            <h3 className="text-lg font-semibold mb-2">Emergency Ready</h3>
+            <p className="text-sm text-muted-foreground">
+              One-tap SOS with location sharing to family and responders
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default Index;
